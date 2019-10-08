@@ -20,7 +20,7 @@ cd devilbox && $ cp env-example .env
 ### Install
 Add the cli to your user bin:
 ```sh
-curl -O https://raw.githubusercontent.com/louisgab/devilbox-cli/devilbox-cli.sh
+curl -O https://raw.githubusercontent.com/devilbox/devilbox-cli/master/devilbox-cli.sh
 chmod +x devilbox-cli.sh
 sudo mv devilbox-cli.sh /usr/local/bin/devilbox
 ```
