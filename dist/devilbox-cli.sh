@@ -1,7 +1,7 @@
 #!/bin/bash
 
-VERSION="0.2.3"
-DATE="2019-04-01"
+VERSION="0.4.1"
+DATE="2020-12-06"
 NAME="devilbox-cli"
 DESCRIPTION="A simple and conveniant command line to manage devilbox from anywhere"
 LINK="https://github.com/louisgab/devilbox-cli"
@@ -381,6 +381,10 @@ set_projects_path () {
     set_readable_config "Projects path" "$WWWPATH_CONFIG" "$new"
 }
 
+check_command () {
+    ./check-config.sh
+}
+
 config_command () {
     for arg in "$@"; do
         case $arg in
@@ -406,7 +410,16 @@ enter_command () {
         error "Devilbox containers are not running"
         return "$KO_CODE"
     fi
-    sh shell.sh
+    ./shell.sh
+}
+
+exec_command() {
+    if ! is_running; then
+        error "Devilbox containers are not running"
+        return "$KO_CODE"
+    fi
+
+    docker-compose exec -u devilbox php bash -c "$@"
 }
 
 add_usage_command () {
@@ -425,32 +438,50 @@ help_command () {
     printf "\n"
     printf "%s\n" "Usage: $0 <command> [--args]... "
     printf "\n"
+    add_usage_command "check" "Check your .env file for potential errors"
     add_usage_command "c,config" "Show / Edit the current config"
-    add_usage_arg "--a=[x.x],--apache=[x.x]" "Set a specific apache version"
-    add_usage_arg "--a=*,--apache=*" "Get all available apache versions"
-    add_usage_arg "--p=*,--php=*" "Get all available php versions"
-    add_usage_arg "--m=*,--mysql=*" "Get all available mysql versions"
-    add_usage_arg "--p,--php" "Get current php version"
-    add_usage_arg "--a,--apache" "Get current apache version"
-    add_usage_arg "--m,--mysql" "Get current mysql version"
-    add_usage_arg "--r=[path],--root=[path]" "Set the document root"
-    add_usage_arg "--r,--root" "Get the current document root"
-    add_usage_arg "--w=[path],--www=[path]" "Set the path to projects"
-    add_usage_arg "--w,--www" "Get the current path to projects"
-    add_usage_arg "--d=[path],--database=[path]" "Set the path to databases"
-    add_usage_arg "--d,--database" "Get the current path to databases"
-    add_usage_arg "--p=[x.x],--php=[x.x]" "Set a specific php version"
-    add_usage_arg "--m=[x.x],--mysql=[x.x]" "Set a specific mysql version"
+    add_usage_arg "-a=<x.x>,--apache=<x.x>" "Set a specific apache version"
+    add_usage_arg "-a=*,--apache=*" "Get all available apache versions"
+    add_usage_arg "-p=*,--php=*" "Get all available php versions"
+    add_usage_arg "-m=*,--mysql=*" "Get all available mysql versions"
+    add_usage_arg "-p,--php" "Get current php version"
+    add_usage_arg "-a,--apache" "Get current apache version"
+    add_usage_arg "-m,--mysql" "Get current mysql version"
+    add_usage_arg "-r=<path>,--root=<path>" "Set the document root"
+    add_usage_arg "-r,--root" "Get the current document root"
+    add_usage_arg "-w=<path>,--www=<path>" "Set the path to projects"
+    add_usage_arg "-w,--www" "Get the current path to projects"
+    add_usage_arg "-d=<path>,--database=<path>" "Set the path to databases"
+    add_usage_arg "-d,--database" "Get the current path to databases"
+    add_usage_arg "-p=<x.x>,--php=<x.x>" "Set a specific php version"
+    add_usage_arg "-m=<x.x>,--mysql=<x.x>" "Set a specific mysql version"
     add_usage_command "e,enter" "Enter the devilbox shell"
+    add_usage_command "x, exec '<command>'" "Execute a command inside the container without entering it"
     add_usage_command "h, help" "List all available commands"
+    add_usage_command "mysql ['<query>']" "Launch a preconnected mysql shell, with optional query"
     add_usage_command "o,open" "Open the devilbox intranet"
     add_usage_arg "-h,--http" "Use non-https url"
+    add_usage_command "restart" "Restart the devilbox docker containers"
+    add_usage_arg "-s,--silent" "Hide errors and run in background"
     add_usage_command "r,run" "Run the devilbox docker containers"
     add_usage_arg "-s,--silent" "Hide errors and run in background"
     add_usage_command "s,stop" "Stop devilbox and docker containers"
     add_usage_command "u,update" "Update devilbox and docker containers"
     add_usage_command "v, version" "Show version information"
     printf "\n"
+}
+
+mysql_command() {
+    if ! is_running; then
+        error "Devilbox containers are not running"
+        return "$KO_CODE"
+    fi
+
+    if [ -z "$1" ]; then
+        exec_command 'mysql -hmysql -uroot'
+    else
+        exec_command "mysql -hmysql -uroot -e '$1'"
+    fi
 }
 
 open_http_intranet () {
@@ -477,12 +508,25 @@ open_command () {
     fi
 }
 
+restart_command() {
+    stop_command
+    run_command "$@"
+}
+
+get_default_containers() {
+   if [ -n "$DEVILBOX_CONTAINERS" ]; then
+        printf %s "${DEVILBOX_CONTAINERS}"
+    else
+        printf %s "httpd php mysql"
+    fi
+}
+
 run_containers () {
-    docker-compose up httpd php mysql
+    docker-compose up $(get_default_containers)
 }
 
 run_containers_silent () {
-    docker-compose up -d httpd php mysql
+    docker-compose up -d $(get_default_containers)
 }
 
 run_command () {
@@ -593,13 +637,18 @@ get_devilbox_path() {
 main () {
     safe_cd "$(get_devilbox_path)" "Devilbox not found, please make sure it is installed in your home directory or use DEVILBOX_PATH in your profile."
     if [[ $# -eq 0 ]] ; then
-        run_command
+        version_command
+        help_command
     else
         case $1 in
+            check) shift; check_command;;
             c|config) shift; config_command "$@";;
             e|enter) shift; enter_command;;
+            x|exec) shift; exec_command "$@";;
             h|help|-h|--help) shift; help_command;;
+            mysql) shift; mysql_command "$@";;
             o|open) shift; open_command "$@";;
+            restart) shift; restart_command "$@";;
             r|run) shift; run_command "$@";;
             s|stop) shift; stop_command;;
             u|update) shift; update_command;;

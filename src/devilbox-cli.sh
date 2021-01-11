@@ -20,10 +20,14 @@ source commands/config/mysql.sh
 source commands/config/docroot.sh
 source commands/config/projects.sh
 
+source commands/check.sh
 source commands/config.sh
 source commands/enter.sh
+source commands/exec.sh
 source commands/help.sh
+source commands/mysql.sh
 source commands/open.sh
+source commands/restart.sh
 source commands/run.sh
 source commands/stop.sh
 source commands/update.sh
